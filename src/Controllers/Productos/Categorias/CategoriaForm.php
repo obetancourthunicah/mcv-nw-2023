@@ -8,12 +8,19 @@ use Utilities\Site;
 use Utilities\Validators;
 use Views\Renderer;
 
+// Cross Site Scripting
+
+// Phishing
+
+// OWasp 
+
 class CategoriaForm extends PublicController
 {
     private $listUrl = "index.php?page=Productos-Categorias-CategoriasList";
     private $mode = 'INS';
     private $viewData = [];
     private $error = [];
+    private $xss_token = '';
     private $modes = [
         "INS" => "Creando nueva categoria",
         "UPD" => "Editando %s (%s)",
@@ -69,6 +76,20 @@ class CategoriaForm extends PublicController
         }
     }
     private function validateFormData(){
+        // Validar XSS Data
+        if(isset($_POST["xss-token"])) {
+            $this->xss_token = $_POST["xss-token"];
+            if( $_SESSION["xss_token_categoria_form"] !== $this->xss_token) {
+                error_log("CategoriaForm: Validacion de XSS Falló");
+                $this->handleError("Error al procesar la peticion");
+                return false;
+            }
+        } else {
+            error_log("CategoriaForm: Validacion de XSS Falló");
+            $this->handleError("Error al procesar la peticion");
+            return false;
+        }
+        
          //Si el nombre no esta vacio
          if(Validators::IsEmpty($_POST["name"])){
             $this->error["name_error"] = "Campo es requerido";
@@ -129,6 +150,13 @@ class CategoriaForm extends PublicController
         foreach ($this->error as $key => $error){
             $this->viewData["categoria"][$key] = $error;
         }
+        $this->viewData["readonly"] = in_array($this->mode, ["DSP","DEL"]) ? 'readonly': '';
+        $this->viewData["showConfirm"] = $this->mode !== "DSP"; 
+
+        // Protegiendo de XSS attacks
+        $this->xss_token = md5("categoriaForm".date('Ymdhisu'));
+        $_SESSION["xss_token_categoria_form"] = $this->xss_token;
+        $this->viewData["xss_token"] = $this->xss_token; 
     }
 
     private function render(){
